@@ -14,16 +14,16 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 rendered_cache = {}
 
 
-# @app.route('/test')
-# def test():
-#     with open('sample.ndjson', 'r') as f:
-#         records = parse_ndjson(f.read())
-#         parsed = parse_activities(records)
-#     render_params = {
-#         "accesses": parsed['accesses'],
-#         "network_activities": parsed['network_activities']
-#     }
-#     return render_template('report.html', **render_params)
+@app.route('/test')
+def test():
+    with open('sample.ndjson', 'r') as f:
+        records = parse_ndjson(f.read())
+        parsed = parse_activities(records)
+    render_params = {
+        "accesses": parsed['accesses'],
+        "network_activities": parsed['network_activities']
+    }
+    return render_template('report.html', **render_params)
 
 
 @app.route("/<path:rendered_id>", methods=['GET'])

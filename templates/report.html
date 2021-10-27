@@ -9,10 +9,11 @@
 
     <title>Report</title>
     <script>
-        console.log("Accesses: {{ accesses|length }}");
-        console.log("Network activities: {{ network_activities|length }}");
-
-        function toggleList() {
+        function toggleList(el) {
+            if (document.getElementById(el.id).classList.contains('active')) {
+                // already active
+                return;
+            }
             document.getElementById('btn-access').classList.toggle('active');
             document.getElementById('btn-access').classList.toggle('btn-primary');
             document.getElementById('btn-access').classList.toggle('btn-outline-primary');
@@ -28,8 +29,8 @@
 </head>
 <body>
 <div class="btn-group w-100" role="group" style="padding: 5px;">
-    <button type="button" class="btn btn-primary active" id="btn-access" onclick="toggleList()">Access</button>
-    <button type="button" class="btn btn-outline-primary" id="btn-network" onclick="toggleList()">Network Activity
+    <button type="button" class="btn btn-primary active" id="btn-access" onclick="toggleList(this)">Access</button>
+    <button type="button" class="btn btn-outline-primary" id="btn-network" onclick="toggleList(this)">Network Activity
     </button>
 </div>
 <div class="accordion" id="accordion-accesses">
