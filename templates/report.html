@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+
+    <title>Report</title>
+    <script>
+        console.log("Accesses: {{ accesses|length }}");
+        console.log("Network activities: {{ network_activities|length }}");
+
+        function toggleList() {
+            document.getElementById('btn-access').classList.toggle('active');
+            document.getElementById('btn-access').classList.toggle('btn-primary');
+            document.getElementById('btn-access').classList.toggle('btn-outline-primary');
+
+            document.getElementById('btn-network').classList.toggle('active');
+            document.getElementById('btn-network').classList.toggle('btn-primary');
+            document.getElementById('btn-network').classList.toggle('btn-outline-primary');
+
+            document.getElementById('accordion-accesses').toggleAttribute('hidden');
+            document.getElementById('accordion-network').toggleAttribute('hidden');
+        }
+    </script>
+</head>
+<body>
+<div class="btn-group w-100" role="group" style="padding: 5px;">
+    <button type="button" class="btn btn-primary active" id="btn-access" onclick="toggleList()">Access</button>
+    <button type="button" class="btn btn-outline-primary" id="btn-network" onclick="toggleList()">Network Activity
+    </button>
+</div>
+<div class="accordion" id="accordion-accesses">
+    {% set i = namespace(value=0) %}
+    {% for bundle, access_pairs in accesses.items() %}
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed text-break" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#collapse-access-{{ i.value }}" aria-expanded="false"
+                        aria-controls="collapse-access-{{ i.value }}">
+                        <span>
+                            {{ bundle }}
+                            <div>
+                                {% for cat, count in access_pairs|access_summary %}
+                                    <span class="badge bg-primary">
+                                        {{ cat.capitalize() }}
+                                        <span class="badge bg-light text-dark">{{ count }}</span>
+                                    </span>
+                                {% endfor %}
+                            </div>
+                    </span>
+                </button>
+            </h2>
+            <div id="collapse-access-{{ i.value }}" class="accordion-collapse collapse"
+                 data-bs-parent="#accordion-accesses">
+                <div class="accordion-body p-0">
+                    <div class="accordion" id="accordion-accesses">
+                        {% set ii = namespace(value=access_pairs|length) %}
+                        {% for access in access_pairs %}
+                            {% set idx = (ii.value - access_pairs|length)|abs %}
+                            {% set obj = access|fmt_access %}
+                            {% set date_id = obj.start_date.replace('-', '') %}
+                            {% set start_group = idx == 0 %}
+                            {% if not start_group %}
+                                {# see if last access is the last item in group #}
+                                {% set access_date = obj.start_date %}
+                                {% set prev_access_date = (access_pairs[idx - 1]|fmt_access).start_date %}
+                                {% set start_group = access_date != prev_access_date %}
+                            {% endif %}
+                            {% set end_group = idx == access_pairs|length - 1 %}
+                            {% if not end_group %}
+                                {# see if current access is the last item in group #}
+                                {% set access_date = obj.start_date %}
+                                {% set next_access_date = (access_pairs[idx + 1]|fmt_access).start_date %}
+                                {% set end_group = access_date != next_access_date %}
+                            {% endif %}
+                            {% if start_group %}
+                                <div class="accordion-item">
+                                <h6 class="accordion-header">
+                                    <button class="accordion-button collapsed text-break" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#collapse-access-{{ i.value }}-{{ date_id }}">
+                                        <span>
+                                            {{ obj.start_date }}
+                                            <div>
+                                                {% for cat, count in access_pairs|filter_access_by_date(access)|access_summary %}
+                                                    <span class="badge bg-light text-dark">
+                                                        {{ cat.capitalize() }}
+                                                        <span class="badge bg-secondary">{{ count }}</span>
+                                                    </span>
+                                                {% endfor %}
+                                            </div>
+                                        </span>
+                                    </button>
+                                </h6>
+                                <div id="collapse-access-{{ i.value }}-{{ date_id }}"
+                                     class="accordion-collapse collapse"
+                                     data-bs-parent="#accordion-accesses-{{ i.value }}">
+                                <div class="accordion-body p-0">
+                                <ul class="list-group">
+                            {% endif %}
+                        <li class="list-group-item m-0 p-0">
+                            <span style="position: absolute; font-size: 0.6em; padding: 2px;">#{{ ii.value }}</span>
+                            <span class="d-flex p-2 pt-3 justify-content-between align-items-start">
+                                                    <div class="ms-2 me-auto">
+                                                        <div class="fw-bold text-break">{{ obj.category.capitalize() }}</div>
+                                                        {{ obj.start_datetime }}
+                                                    </div>
+                                                    <span class="badge bg-secondary rounded-pill">{{ obj.duration }} s</span>
+                                                </span>
+                        </li>
+                        {% if end_group %}
+                            </ul>
+                            </div>
+                            </div>
+                            </div>
+                        {% endif %}
+                            {% set ii.value = ii.value - 1 %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% set i.value = i.value + 1 %}
+    {% endfor %}
+</div>
+<div class="accordion" id="accordion-network" hidden>
+    {% set i = namespace(value=0) %}
+    {% for bundle, activities in network_activities.items() %}
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingTwo">
+                <button class="accordion-button collapsed text-break" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#collapse-network-{{ i.value }}" aria-expanded="false"
+                        aria-controls="collapse-network-{{ i.value }}">
+                    {{ bundle }}<span class="ms-1 badge bg-primary">{{ activities|length }}</span>
+                </button>
+            </h2>
+            <div id="collapse-network-{{ i.value }}" class="accordion-collapse collapse" aria-labelledby="headingTwo"
+                 data-bs-parent="#accordion-network">
+                <div class="accordion-body p-0">
+                    <ul class="list-group">
+                        {% set ii = namespace(value=activities|length) %}
+                        {% for activity in activities %}
+                            <li class="list-group-item m-0 p-0">
+                                <span style="position: absolute; font-size: 0.6em; padding: 2px;">#{{ ii.value }}</span>
+                                <span class="d-flex p-2 pt-3 justify-content-between align-items-start">
+                                    <div class="ms-2 me-auto">
+                                        <div class="fw-bold text-break">{{ activity.domain }}</div>
+                                        {{ activity.timeStamp|fmt_timestamp }}
+                                    </div>
+                                    <span class="badge bg-secondary rounded-pill">{{ activity.hits }} hits</span>
+                                </span>
+                            </li>
+                            {% set ii.value = ii.value - 1 %}
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% set i.value = i.value + 1 %}
+    {% endfor %}
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"
+        crossorigin="anonymous"></script>
+</body>
+</html>
