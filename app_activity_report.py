@@ -16,14 +16,7 @@ rendered_cache = {}
 
 @app.route('/test')
 def test():
-    with open('sample.ndjson', 'r') as f:
-        records = parse_ndjson(f.read())
-        parsed = parse_activities(records)
-    render_params = {
-        "accesses": parsed['accesses'],
-        "network_activities": parsed['network_activities']
-    }
-    return render_template('report.html', **render_params)
+    return render_template('test.html')
 
 
 @app.route("/<path:rendered_id>", methods=['GET'])
@@ -61,15 +54,18 @@ def render_report():
 
 @app.template_filter('fmt_access')
 def fmt_access(access):
-    start_time = datetime.fromisoformat(access['start']['timeStamp'])
-    end_time = datetime.fromisoformat(access['end']['timeStamp'])
-    duration_second = int(end_time.timestamp() -
-                          start_time.timestamp())
-    duration_second = 1 if duration_second == 0 else duration_second
+    start_time = datetime.fromisoformat(access['start']['timeStamp']) if has_key(access, 'start', 'timeStamp') else None
+    end_time = datetime.fromisoformat(access['end']['timeStamp']) if has_key(access, 'end', 'timeStamp') else None
+    duration_second = None
+    if start_time is not None and end_time is not None:
+        duration_second = int(end_time.timestamp() -
+                              start_time.timestamp())
+        duration_second = 1 if duration_second == 0 else duration_second
+    display_time = start_time if start_time is not None else end_time
     return {
         'category': access['category'],
-        'start_datetime': start_time.strftime('%Y-%m-%d %H:%M:%S'),
-        'start_date': start_time.strftime('%Y-%m-%d'),
+        'datetime': display_time.strftime('%Y-%m-%d %H:%M:%S') if display_time is not None else 'None',
+        'date': display_time.strftime('%Y-%m-%d') if display_time is not None else 'None',
         'duration': duration_second
     }
 
@@ -95,8 +91,10 @@ def access_summary(access_pairs):
 
 @app.template_filter('filter_access_by_date')
 def filter_access_by_date(access_pairs, access):
-    target_date = fmt_timestamp_to_date(access['start']['timeStamp'])
-    return list(filter(lambda x: target_date == fmt_timestamp_to_date(x['start']['timeStamp']), access_pairs))
+    target_date = fmt_timestamp_to_date(
+        access['start']['timeStamp'] if has_key(access, 'start', 'timeStamp') else access['end']['timeStamp'])
+    return list(filter(lambda x: target_date == fmt_timestamp_to_date(
+        x['start']['timeStamp'] if has_key(x, 'start', 'timeStamp') else x['end']['timeStamp']), access_pairs))
 
 
 def print_network_activities(_network_activities):
@@ -133,6 +131,25 @@ def parse_ndjson(s):
     return records
 
 
+def has_key(element, *keys, allow_none=False):
+    if not isinstance(element, dict):
+        raise AttributeError('has_key() expects dict as first argument.')
+    if len(keys) == 0:
+        raise AttributeError('has_key() expects at least two arguments, one given.')
+    if element is None:
+        raise AttributeError('has_key() does not take None element')
+
+    _element = element
+    for key in keys:
+        try:
+            _element = _element[key]
+            if _element is None and not allow_none:
+                return False
+        except KeyError:
+            return False
+    return True
+
+
 def parse_activities(records):
     parsed = {}
     # parse network activities
@@ -144,13 +161,17 @@ def parse_activities(records):
     }
 
     def pair_to_obj(_pair):
-        lst = list(_pair)
-        return {
-            'id': lst[0]['identifier'],
-            'category': lst[0]['category'],
-            'start': list(filter(lambda x: x['kind'] == 'intervalBegin', lst))[0],
-            'end': list(filter(lambda x: x['kind'] == 'intervalEnd', lst))[0]
+        pairs = list(_pair)
+        ret = {
+            'id': pairs[0]['identifier'],
+            'category': pairs[0]['category'],
+            'start': next(filter(lambda x: x['kind'] == 'intervalBegin', pairs), None),
+            'end': next(filter(lambda x: x['kind'] == 'intervalEnd', pairs), None)
         }
+        if ret['start'] is None or ret['end'] is None:
+            print(f'access has no start/end pair')
+            print(json.dumps(ret, indent=2))
+        return ret
 
     # parse access
     lst = sorted(list(filter(
@@ -160,7 +181,8 @@ def parse_activities(records):
             # group by activities' identifier
             pair_to_obj(pair)
             for _, pair in itertools.groupby(sorted(acts, key=lambda x: x['identifier']), lambda x: x['identifier'])
-        ], reverse=True, key=lambda x: datetime.fromisoformat(x['start']['timeStamp']).timestamp())
+        ], reverse=True, key=lambda x: datetime.fromisoformat(
+            x['start']['timeStamp'] if has_key(x, 'start', 'timeStamp') else x['end']['timeStamp']).timestamp())
         for bundle, acts in itertools.groupby(lst, lambda x: x['accessor']['identifier'])
     }
 
